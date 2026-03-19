@@ -187,7 +187,7 @@ def main():
                             hex_dump(out.encode("utf-8"))
 
                     except Exception as e:
-                        print("=== INVALID AVRO MESSAGE DETECTED ==============================================\n")
+                        print("=== INVALID AVRO MESSAGE DETECTED ==============================================")
                         print(f"offset={msg.offset()} partition={msg.partition()} schema_id={schema_id}")
                         print(f"AVRO decode failed: {e}")
                         hex_dump(raw)
@@ -196,7 +196,7 @@ def main():
                     hex_dump(raw)
 
                 if not silent:
-                    print("================================================================================\n")
+                    print("================================================================================")
 
                 continue
 
@@ -212,10 +212,10 @@ def main():
                     print(out)
                     hex_dump(out.encode('utf-8'))
             else:
-                print("=== INVALID JSON MESSAGE DETECTED ==============================================\n")
+                print("=== INVALID JSON MESSAGE DETECTED ==============================================")
                 print(f"offset={msg.offset()} partition={msg.partition()}")
                 hex_dump(raw)
-                print("================================================================================\n")
+                print("================================================================================")
 
     except KeyboardInterrupt:
         pass
