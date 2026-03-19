@@ -178,7 +178,7 @@ def main():
                     try:
                         decoded = avro_deserializer(raw, None)
 
-                        print(f"OK (AVRO) offset={msg.offset()}")
+                        print(f"OK (AVRO) offset={msg.offset()} partition={msg.partition()}")
                         if not silent:
                             print(json.dumps(decoded, ensure_ascii=False, indent=2, default=json_safe))
 
@@ -202,7 +202,7 @@ def main():
             parsed = try_json(raw)
 
             if parsed is not None:
-                print(f"OK (JSON) offset={msg.offset()}")
+                print(f"OK (JSON) offset={msg.offset()} partition={msg.partition()}")
                 if not silent:
                     print(json.dumps(parsed, ensure_ascii=False, indent=2, default=json_safe))
             else:
