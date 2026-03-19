@@ -87,8 +87,9 @@ Avro without SR Hex dump + schema_id
 
 ```bash
 docker run --rm\
--e KAFKA_BOOTSTRAP_SERVERS=host.docker.internal:9092\
--e KAFKA_TOPIC=my-topic\
+-e KAFKA_BOOTSTRAP_SERVERS=host.docker.internal:9092 \
+-e KAFKA_TOPIC=my-topic \
+-e SILENT_MODE=true \
 kafka-json-validator
 ```
 
