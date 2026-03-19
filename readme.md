@@ -1,102 +1,149 @@
-# Kafka JSON Validator (Hex Debug Mode)
+# Kafka JSON / Avro Validator (Hex Debug Tool)
 
-A lightweight Kafka consumer that:
+A Kafka consumer for inspecting and validating message payloads.
 
-- Reads messages from a topic
-- Validates whether payload is valid JSON
-- Prints:
-    - OK → for valid JSON
-    - Hex dump + metadata → for invalid messages
+Supports: - JSON validation - Avro (Confluent wire format)
+auto-detection - Schema Registry decoding (optional) - Hex dump for raw
+debugging
 
-Designed for CDC debugging, encoding issues, and payload forensics.
-
----
+------------------------------------------------------------------------
 
 ## Features
 
-- Byte-level inspection (hex + ASCII view)
-- Works on raw Kafka bytes (no encoding assumptions)
-- Env-driven configuration
-- Supports PLAINTEXT, SSL (mTLS), SASL
-- Dockerized and stateless
+- Automatic format detection (JSON vs Avro)
+- Schema Registry integration (optional)
+- Full SSL / SASL support for Kafka
+- Full SSL support for Schema Registry
+- Byte-level hex inspection
 
----
+------------------------------------------------------------------------
+
+## Build
+
+docker build -t kafka-json-validator .
+
+------------------------------------------------------------------------
 
 ## Environment Variables
 
-| Variable                | Required | Default              | Description                |
-|-------------------------|----------|----------------------|----------------------------|
-| KAFKA_BOOTSTRAP_SERVERS | Yes      | —                    | Kafka bootstrap servers    |
-| KAFKA_TOPIC             | Yes      | —                    | Topic to consume           |
-| KAFKA_GROUP_ID          | No       | json-validator-group | Consumer group             |
-| KAFKA_AUTO_OFFSET_RESET | No       | earliest             | earliest / latest          |
-| KAFKA_SECURITY_PROTOCOL | No       | PLAINTEXT            | PLAINTEXT / SSL / SASL_SSL |
+### Core Kafka
 
-### SSL
+| Variable                | Required | Description                |
+|-------------------------|----------|----------------------------|
+| KAFKA_BOOTSTRAP_SERVERS | Yes      | Kafka brokers              |
+| KAFKA_TOPIC             | Yes      | Topic name                 |
+| KAFKA_GROUP_ID          | No       | Consumer group             |
+| KAFKA_AUTO_OFFSET_RESET | No       | earliest / latest          |
+| KAFKA_SECURITY_PROTOCOL | No       | PLAINTEXT / SSL / SASL_SSL |
 
-| Variable                | Description           |
-|-------------------------|-----------------------|
-| KAFKA_SSL_CA_LOCATION   | CA certificate        |
-| KAFKA_SSL_CERT_LOCATION | Client cert           |
-| KAFKA_SSL_KEY_LOCATION  | Client key            |
-| KAFKA_SSL_KEY_PASSWORD  | Optional key password |
+### Kafka SSL
 
-### SASL
+| Variable                | Description |
+|-------------------------|-------------|
+| KAFKA_SSL_CA_LOCATION   | CA cert     |
+| KAFKA_SSL_CERT_LOCATION | Client cert |
+| KAFKA_SSL_KEY_LOCATION  | Client key  |
+| KAFKA_SSL_KEY_PASSWORD  | Optional    |
 
-| Variable             | Description    |
-|----------------------|----------------|
-| KAFKA_SASL_MECHANISM | Auth mechanism |
-| KAFKA_SASL_USERNAME  | Username       |
-| KAFKA_SASL_PASSWORD  | Password       |
+### Kafka SASL
 
----
+| Variable             | Description   |
+|----------------------|---------------|
+| KAFKA_SASL_MECHANISM | SCRAM / PLAIN |
+| KAFKA_SASL_USERNAME  | Username      |
+| KAFKA_SASL_PASSWORD  | Password      |
+
+### Schema Registry
+
+| Variable                   | Description         |
+|----------------------------|---------------------|
+| SCHEMA_REGISTRY_URL        | http(s)://host:port |
+| SCHEMA_REGISTRY_BASIC_AUTH | user:pass           |
+
+### Schema Registry SSL
+
+| Variable                                              | Description |
+|-------------------------------------------------------|-------------|
+| SCHEMA_REGISTRY_SSL_CA_LOCATION                       | CA cert     |
+| SCHEMA_REGISTRY_SSL_CERT_LOCATION                     | Client cert |
+| SCHEMA_REGISTRY_SSL_KEY_LOCATION                      | Client key  |
+| SCHEMA_REGISTRY_SSL_KEY_PASSWORD                      | Optional    |
+| SCHEMA_REGISTRY_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM | e.g. none   |
+
+------------------------------------------------------------------------
+
+## Behavior
+
+Message Type Action
+  ----------------- ----------------------
+JSON valid OK (JSON)
+JSON invalid Hex dump
+Avro + SR Decode + print JSON
+Avro without SR Hex dump + schema_id
+
+------------------------------------------------------------------------
 
 ## Example: PLAINTEXT
 
 ```bash
-docker run --rm \
--e KAFKA_BOOTSTRAP_SERVERS=host.docker.internal:9092 \
--e KAFKA_TOPIC=my-topic \
+docker run --rm\
+-e KAFKA_BOOTSTRAP_SERVERS=host.docker.internal:9092\
+-e KAFKA_TOPIC=my-topic\
 kafka-json-validator
 ```
 
----
+------------------------------------------------------------------------
 
-## Example: SSL
+## Example: SSL + Schema Registry
 
 ```bash
-docker run --rm \
--e KAFKA_BOOTSTRAP_SERVERS=broker:9093 \
--e KAFKA_TOPIC=my-topic \
--e KAFKA_SECURITY_PROTOCOL=SSL \
--e KAFKA_SSL_CA_LOCATION=/certs/ca.pem \
--e KAFKA_SSL_CERT_LOCATION=/certs/client.pem \
--e KAFKA_SSL_KEY_LOCATION=/certs/client.key \
--v $(pwd)/certs:/certs:ro \
+docker run --rm\
+-e KAFKA_BOOTSTRAP_SERVERS=broker:9093\
+-e KAFKA_TOPIC=my-topic\
+-e KAFKA_SECURITY_PROTOCOL=SSL\
+-e KAFKA_SSL_CA_LOCATION=/certs/ca.pem\
+-e KAFKA_SSL_CERT_LOCATION=/certs/client.pem\
+-e KAFKA_SSL_KEY_LOCATION=/certs/client.key\
+-e SCHEMA_REGISTRY_URL=https://sr:8081\
+-e SCHEMA_REGISTRY_SSL_CA_LOCATION=/certs/ca.pem\
+-v \$(pwd)/certs:/certs:ro\
 kafka-json-validator
 ```
 
----
+------------------------------------------------------------------------
 
-## Output
+## Output Examples
 
+### JSON
+
+```bash
+OK (JSON)
 ```
-Valid:
-offset=123 partition=0 - OK
 
-Invalid:
+------------------------------------------------------------------------
+
+### Avro
+
+```bash
+OK (AVRO)
+```
+
+------------------------------------------------------------------------
+
+### Invalid
+
+```bash
 === INVALID MESSAGE DETECTED ===
 offset=123 partition=0
 00000000 7b 22 6e ... |...|
 ================================
 ```
 
----
+------------------------------------------------------------------------
 
 ## Notes
 
-Useful for debugging:
-
-- Debezium / CDC pipelines
-- Encoding issues (UTF-8 / Hebrew corruption)
-- Broken JSON payloads
+- Avro detection is based on Confluent wire format
+- Schema Registry is optional but required for decoding
+- Tool is designed for CDC / Debezium debugging
+- Works with binary payloads and encoding issues

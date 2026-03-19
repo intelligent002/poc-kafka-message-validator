@@ -2,44 +2,85 @@ import json
 import os
 import sys
 from confluent_kafka import Consumer
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.avro import AvroDeserializer
 
 
 # =========================
-# CONFIG
+# CONFIG: KAFKA
 # =========================
 def build_kafka_config():
     config = {
-        "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+        "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS"),
         "group.id": os.getenv("KAFKA_GROUP_ID", "json-validator-group"),
         "auto.offset.reset": os.getenv("KAFKA_AUTO_OFFSET_RESET", "earliest"),
         "enable.auto.commit": True,
     }
 
-    security_protocol = os.getenv("KAFKA_SECURITY_PROTOCOL")
+    protocol = os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT")
+    config["security.protocol"] = protocol
 
-    if security_protocol:
-        config["security.protocol"] = security_protocol
+    if protocol in ("SSL", "SASL_SSL"):
+        if os.getenv("KAFKA_SSL_CA_LOCATION"):
+            config["ssl.ca.location"] = os.getenv("KAFKA_SSL_CA_LOCATION")
+        if os.getenv("KAFKA_SSL_CERT_LOCATION"):
+            config["ssl.certificate.location"] = os.getenv("KAFKA_SSL_CERT_LOCATION")
+        if os.getenv("KAFKA_SSL_KEY_LOCATION"):
+            config["ssl.key.location"] = os.getenv("KAFKA_SSL_KEY_LOCATION")
+        if os.getenv("KAFKA_SSL_KEY_PASSWORD"):
+            config["ssl.key.password"] = os.getenv("KAFKA_SSL_KEY_PASSWORD")
 
-    # SSL config (optional)
-    if security_protocol in ("SSL", "SASL_SSL"):
-        config.update({
-            "ssl.ca.location": os.getenv("KAFKA_SSL_CA_LOCATION"),
-            "ssl.certificate.location": os.getenv("KAFKA_SSL_CERT_LOCATION"),
-            "ssl.key.location": os.getenv("KAFKA_SSL_KEY_LOCATION"),
-        })
+    if protocol in ("SASL_SSL", "SASL_PLAINTEXT"):
+        config["sasl.mechanism"] = os.getenv("KAFKA_SASL_MECHANISM")
+        config["sasl.username"] = os.getenv("KAFKA_SASL_USERNAME")
+        config["sasl.password"] = os.getenv("KAFKA_SASL_PASSWORD")
 
-    # SASL config (optional)
-    if security_protocol in ("SASL_SSL", "SASL_PLAINTEXT"):
-        config.update({
-            "sasl.mechanism": os.getenv("KAFKA_SASL_MECHANISM"),
-            "sasl.username": os.getenv("KAFKA_SASL_USERNAME"),
-            "sasl.password": os.getenv("KAFKA_SASL_PASSWORD"),
-        })
+    if os.getenv("KAFKA_DEBUG"):
+        config["debug"] = os.getenv("KAFKA_DEBUG")
 
     return config
 
 
-TOPIC = os.getenv("KAFKA_TOPIC", "test-topic")
+# =========================
+# CONFIG: SCHEMA REGISTRY
+# =========================
+def build_schema_registry():
+    url = os.getenv("SCHEMA_REGISTRY_URL")
+    if not url:
+        return None
+
+    conf = {
+        "url": url,
+    }
+
+    if os.getenv("SCHEMA_REGISTRY_BASIC_AUTH"):
+        conf["basic.auth.user.info"] = os.getenv("SCHEMA_REGISTRY_BASIC_AUTH")
+
+    if os.getenv("SCHEMA_REGISTRY_SSL_CA_LOCATION"):
+        conf["ssl.ca.location"] = os.getenv("SCHEMA_REGISTRY_SSL_CA_LOCATION")
+
+    if os.getenv("SCHEMA_REGISTRY_SSL_CERT_LOCATION"):
+        conf["ssl.certificate.location"] = os.getenv("SCHEMA_REGISTRY_SSL_CERT_LOCATION")
+
+    if os.getenv("SCHEMA_REGISTRY_SSL_KEY_LOCATION"):
+        conf["ssl.key.location"] = os.getenv("SCHEMA_REGISTRY_SSL_KEY_LOCATION")
+
+    if os.getenv("SCHEMA_REGISTRY_SSL_KEY_PASSWORD"):
+        conf["ssl.key.password"] = os.getenv("SCHEMA_REGISTRY_SSL_KEY_PASSWORD")
+
+    if os.getenv("SCHEMA_REGISTRY_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM"):
+        conf["ssl.endpoint.identification.algorithm"] = os.getenv(
+            "SCHEMA_REGISTRY_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM"
+        )
+
+    return SchemaRegistryClient(conf)
+
+
+# =========================
+# DETECTION
+# =========================
+def is_confluent_avro(raw: bytes) -> bool:
+    return len(raw) > 5 and raw[0] == 0
 
 
 # =========================
@@ -61,27 +102,31 @@ def hex_dump(data: bytes, width: int = 16):
 
 
 # =========================
-# JSON VALIDATION
+# JSON PARSER
 # =========================
-def is_valid_json(raw: bytes) -> bool:
+def try_json(raw: bytes):
     try:
-        json.loads(raw)
-        return True
+        return json.loads(raw)
     except Exception:
-        return False
+        return None
 
 
 # =========================
 # MAIN
 # =========================
 def main():
-    config = build_kafka_config()
+    topic = os.getenv("KAFKA_TOPIC")
+    if not topic:
+        raise RuntimeError("KAFKA_TOPIC is required")
 
-    consumer = Consumer(config)
-    consumer.subscribe([TOPIC])
+    kafka_config = build_kafka_config()
+    consumer = Consumer(kafka_config)
+    consumer.subscribe([topic])
 
-    print(f"Listening on topic: {TOPIC}", file=sys.stderr)
-    print(f"Kafka config: {config}", file=sys.stderr)
+    sr_client = build_schema_registry()
+    avro_deserializer = AvroDeserializer(sr_client) if sr_client else None
+
+    print(f"Listening on topic: {topic}", file=sys.stderr)
 
     try:
         while True:
@@ -98,8 +143,37 @@ def main():
             if raw is None:
                 continue
 
-            if is_valid_json(raw):
-                print("OK")
+            # =========================
+            # AVRO
+            # =========================
+            if is_confluent_avro(raw):
+                schema_id = int.from_bytes(raw[1:5], "big")
+
+                print(f"\n=== AVRO MESSAGE ===")
+                print(f"offset={msg.offset()} partition={msg.partition()} schema_id={schema_id}")
+
+                if avro_deserializer:
+                    try:
+                        decoded = avro_deserializer(raw, None)
+                        print("OK (Avro decoded)")
+                        print(json.dumps(decoded, ensure_ascii=False, indent=2))
+                    except Exception as e:
+                        print(f"Avro decode failed: {e}")
+                        hex_dump(raw)
+                else:
+                    print("Schema Registry not configured")
+                    hex_dump(raw)
+
+                print("====================\n")
+                continue
+
+            # =========================
+            # JSON
+            # =========================
+            parsed = try_json(raw)
+
+            if parsed is not None:
+                print("OK (JSON)")
             else:
                 print("\n=== INVALID MESSAGE ===")
                 print(f"offset={msg.offset()} partition={msg.partition()}")
