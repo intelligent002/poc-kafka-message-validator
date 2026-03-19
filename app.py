@@ -1,8 +1,8 @@
 import json
 import os
 import sys
-from decimal import Decimal
 from datetime import datetime, date
+from decimal import Decimal
 
 from confluent_kafka import Consumer
 from confluent_kafka.schema_registry import SchemaRegistryClient
@@ -21,8 +21,10 @@ def json_safe(obj):
 
     return str(obj)
 
+
 def is_silent_mode() -> bool:
     return os.getenv("SILENT_MODE", "false").lower() in ("1", "true", "yes")
+
 
 # =========================
 # CONFIG: KAFKA
@@ -181,6 +183,7 @@ def main():
                         print(f"OK (AVRO) offset={msg.offset()} partition={msg.partition()}")
                         if not silent:
                             print(json.dumps(decoded, ensure_ascii=False, indent=2, default=json_safe))
+                            hex_dump(raw)
 
                     except Exception as e:
                         print("\n=== INVALID AVRO MESSAGE DETECTED ===")
@@ -205,6 +208,7 @@ def main():
                 print(f"OK (JSON) offset={msg.offset()} partition={msg.partition()}")
                 if not silent:
                     print(json.dumps(parsed, ensure_ascii=False, indent=2, default=json_safe))
+                    hex_dump(raw)
             else:
                 print("\n=== INVALID JSON MESSAGE DETECTED ===")
                 print(f"offset={msg.offset()} partition={msg.partition()}")
