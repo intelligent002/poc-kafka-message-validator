@@ -187,12 +187,12 @@ def main():
                             hex_dump(out.encode("utf-8"))
 
                     except Exception as e:
-                        print("\n=== INVALID AVRO MESSAGE DETECTED ===")
+                        print("=== INVALID AVRO MESSAGE DETECTED ==============================================\n")
                         print(f"offset={msg.offset()} partition={msg.partition()} schema_id={schema_id}")
                         print(f"AVRO decode failed: {e}")
                         hex_dump(raw)
                 else:
-                    print("Schema Registry not configured")
+                    print("Schema Registry not configured\n")
                     hex_dump(raw)
 
                 if not silent:
@@ -212,10 +212,10 @@ def main():
                     print(out)
                     hex_dump(out.encode('utf-8'))
             else:
-                print("\n=== INVALID JSON MESSAGE DETECTED ===")
+                print("=== INVALID JSON MESSAGE DETECTED ==============================================\n")
                 print(f"offset={msg.offset()} partition={msg.partition()}")
                 hex_dump(raw)
-                print("========================================\n")
+                print("================================================================================\n")
 
     except KeyboardInterrupt:
         pass
