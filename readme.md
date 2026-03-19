@@ -97,16 +97,19 @@ kafka-json-validator
 ## Example: SSL + Schema Registry
 
 ```bash
-docker run --rm\
--e KAFKA_BOOTSTRAP_SERVERS=broker:9093\
--e KAFKA_TOPIC=my-topic\
--e KAFKA_SECURITY_PROTOCOL=SSL\
--e KAFKA_SSL_CA_LOCATION=/certs/ca.pem\
--e KAFKA_SSL_CERT_LOCATION=/certs/client.pem\
--e KAFKA_SSL_KEY_LOCATION=/certs/client.key\
--e SCHEMA_REGISTRY_URL=https://sr:8081\
--e SCHEMA_REGISTRY_SSL_CA_LOCATION=/certs/ca.pem\
--v \$(pwd)/certs:/certs:ro\
+docker run --rm \
+-e KAFKA_BOOTSTRAP_SERVERS=SSL://node-04.intel.r7g.org:9093,SSL://node-05.intel.r7g.org:9093,SSL://node-06.intel.r7g.org:9093 \
+-e KAFKA_TOPIC=cdc-mssql-FHIR-EMPLOYEES \
+-e KAFKA_SECURITY_PROTOCOL=SSL \
+-e KAFKA_SSL_CA_LOCATION=/certs/CA/ca.crt \
+-e KAFKA_SSL_CERT_LOCATION=/certs/users/admin/admin.pem \
+-e KAFKA_SSL_KEY_LOCATION=/certs/users/admin/admin.key \
+-e SCHEMA_REGISTRY_URL=https://node-00.intel.r7g.org:9030 \
+-e SCHEMA_REGISTRY_SSL_CA_LOCATION=/certs/CA/ca.crt \
+-e SCHEMA_REGISTRY_SSL_CERT_LOCATION=/certs/users/admin/admin.pem \
+-e SCHEMA_REGISTRY_SSL_KEY_LOCATION=/certs/users/admin/admin.key \
+-e SILENT_MODE=false \
+-v /data/cluster/certificates:/certs:ro \
 kafka-json-validator
 ```
 
