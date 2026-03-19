@@ -21,6 +21,8 @@ def json_safe(obj):
 
     return str(obj)
 
+def is_silent_mode() -> bool:
+    return os.getenv("SILENT_MODE", "false").lower() in ("1", "true", "yes")
 
 # =========================
 # CONFIG: KAFKA
@@ -137,6 +139,7 @@ def try_json(raw: bytes):
 # MAIN
 # =========================
 def main():
+    silent = is_silent_mode()
     topic = os.getenv("KAFKA_TOPIC")
     if not topic:
         raise RuntimeError("KAFKA_TOPIC is required")
@@ -178,17 +181,20 @@ def main():
                     try:
                         decoded = avro_deserializer(raw, None)
 
-                        print("OK (Avro decoded)")
-                        print(json.dumps(decoded, ensure_ascii=False, indent=2, default=json_safe))
+                        print("OK (AVRO)")
+                        if not silent:
+                            print(json.dumps(decoded, ensure_ascii=False, indent=2, default=json_safe))
 
                     except Exception as e:
-                        print(f"Avro decode failed: {e}")
+                        print("\n=== INVALID AVRO MESSAGE DETECTED ===")
+                        print(f"offset={msg.offset()} partition={msg.partition()}")
+                        print(f"AVRO decode failed: {e}")
                         hex_dump(raw)
                 else:
                     print("Schema Registry not configured")
                     hex_dump(raw)
 
-                print("====================\n")
+                print("========================================\n")
                 continue
 
             # =========================
@@ -198,11 +204,13 @@ def main():
 
             if parsed is not None:
                 print("OK (JSON)")
+                if not silent:
+                    print(json.dumps(parsed, ensure_ascii=False, indent=2, default=json_safe))
             else:
-                print("\n=== INVALID MESSAGE ===")
+                print("\n=== INVALID JSON MESSAGE DETECTED ===")
                 print(f"offset={msg.offset()} partition={msg.partition()}")
                 hex_dump(raw)
-                print("=======================\n")
+                print("========================================\n")
 
     except KeyboardInterrupt:
         pass
