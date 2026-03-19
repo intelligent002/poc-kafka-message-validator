@@ -174,9 +174,6 @@ def main():
             if is_confluent_avro(raw):
                 schema_id = int.from_bytes(raw[1:5], "big")
 
-                print("\n=== AVRO MESSAGE ===")
-                print(f"offset={msg.offset()} partition={msg.partition()} schema_id={schema_id}")
-
                 if avro_deserializer:
                     try:
                         decoded = avro_deserializer(raw, None)
@@ -187,7 +184,7 @@ def main():
 
                     except Exception as e:
                         print("\n=== INVALID AVRO MESSAGE DETECTED ===")
-                        print(f"offset={msg.offset()} partition={msg.partition()}")
+                        print(f"offset={msg.offset()} partition={msg.partition()} schema_id={schema_id}")
                         print(f"AVRO decode failed: {e}")
                         hex_dump(raw)
                 else:
