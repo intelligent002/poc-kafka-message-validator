@@ -1,9 +1,25 @@
 import json
 import os
 import sys
+from decimal import Decimal
+from datetime import datetime, date
+
 from confluent_kafka import Consumer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroDeserializer
+
+
+# =========================
+# JSON SAFE SERIALIZER
+# =========================
+def json_safe(obj):
+    if isinstance(obj, Decimal):
+        return str(obj)  # preserve precision
+
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+
+    return str(obj)
 
 
 # =========================
@@ -23,17 +39,25 @@ def build_kafka_config():
     if protocol in ("SSL", "SASL_SSL"):
         if os.getenv("KAFKA_SSL_CA_LOCATION"):
             config["ssl.ca.location"] = os.getenv("KAFKA_SSL_CA_LOCATION")
+
         if os.getenv("KAFKA_SSL_CERT_LOCATION"):
             config["ssl.certificate.location"] = os.getenv("KAFKA_SSL_CERT_LOCATION")
+
         if os.getenv("KAFKA_SSL_KEY_LOCATION"):
             config["ssl.key.location"] = os.getenv("KAFKA_SSL_KEY_LOCATION")
+
         if os.getenv("KAFKA_SSL_KEY_PASSWORD"):
             config["ssl.key.password"] = os.getenv("KAFKA_SSL_KEY_PASSWORD")
 
     if protocol in ("SASL_SSL", "SASL_PLAINTEXT"):
-        config["sasl.mechanism"] = os.getenv("KAFKA_SASL_MECHANISM")
-        config["sasl.username"] = os.getenv("KAFKA_SASL_USERNAME")
-        config["sasl.password"] = os.getenv("KAFKA_SASL_PASSWORD")
+        if os.getenv("KAFKA_SASL_MECHANISM"):
+            config["sasl.mechanism"] = os.getenv("KAFKA_SASL_MECHANISM")
+
+        if os.getenv("KAFKA_SASL_USERNAME"):
+            config["sasl.username"] = os.getenv("KAFKA_SASL_USERNAME")
+
+        if os.getenv("KAFKA_SASL_PASSWORD"):
+            config["sasl.password"] = os.getenv("KAFKA_SASL_PASSWORD")
 
     if os.getenv("KAFKA_DEBUG"):
         config["debug"] = os.getenv("KAFKA_DEBUG")
@@ -56,6 +80,7 @@ def build_schema_registry():
     if os.getenv("SCHEMA_REGISTRY_BASIC_AUTH"):
         conf["basic.auth.user.info"] = os.getenv("SCHEMA_REGISTRY_BASIC_AUTH")
 
+    # SSL (Schema Registry uses HTTP client, limited support)
     if os.getenv("SCHEMA_REGISTRY_SSL_CA_LOCATION"):
         conf["ssl.ca.location"] = os.getenv("SCHEMA_REGISTRY_SSL_CA_LOCATION")
 
@@ -65,13 +90,10 @@ def build_schema_registry():
     if os.getenv("SCHEMA_REGISTRY_SSL_KEY_LOCATION"):
         conf["ssl.key.location"] = os.getenv("SCHEMA_REGISTRY_SSL_KEY_LOCATION")
 
-    if os.getenv("SCHEMA_REGISTRY_SSL_KEY_PASSWORD"):
-        conf["ssl.key.password"] = os.getenv("SCHEMA_REGISTRY_SSL_KEY_PASSWORD")
-
-    if os.getenv("SCHEMA_REGISTRY_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM"):
-        conf["ssl.endpoint.identification.algorithm"] = os.getenv(
-            "SCHEMA_REGISTRY_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM"
-        )
+    # NOTE:
+    # DO NOT include:
+    # - ssl.key.password
+    # - ssl.endpoint.identification.algorithm
 
     return SchemaRegistryClient(conf)
 
@@ -144,19 +166,21 @@ def main():
                 continue
 
             # =========================
-            # AVRO
+            # AVRO PATH
             # =========================
             if is_confluent_avro(raw):
                 schema_id = int.from_bytes(raw[1:5], "big")
 
-                print(f"\n=== AVRO MESSAGE ===")
+                print("\n=== AVRO MESSAGE ===")
                 print(f"offset={msg.offset()} partition={msg.partition()} schema_id={schema_id}")
 
                 if avro_deserializer:
                     try:
                         decoded = avro_deserializer(raw, None)
+
                         print("OK (Avro decoded)")
-                        print(json.dumps(decoded, ensure_ascii=False, indent=2))
+                        print(json.dumps(decoded, ensure_ascii=False, indent=2, default=json_safe))
+
                     except Exception as e:
                         print(f"Avro decode failed: {e}")
                         hex_dump(raw)
@@ -168,7 +192,7 @@ def main():
                 continue
 
             # =========================
-            # JSON
+            # JSON PATH
             # =========================
             parsed = try_json(raw)
 
