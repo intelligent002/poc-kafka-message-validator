@@ -191,7 +191,9 @@ def main():
                     print("Schema Registry not configured")
                     hex_dump(raw)
 
-                print("========================================\n")
+                if not silent:
+                    print("========================================\n")
+
                 continue
 
             # =========================
