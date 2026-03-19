@@ -26,6 +26,13 @@ docker build -t kafka-json-validator .
 
 ## Environment Variables
 
+### Operator Convenience
+
+| Variable    | Required | Description            |
+|-------------|----------|------------------------|
+| SILENT_MODE | No       | Boolean for less noise |
+
+
 ### Core Kafka
 
 | Variable                | Required | Description                |
@@ -121,7 +128,7 @@ kafka-json-validator
 ### JSON
 
 ```bash
-OK (JSON)
+OK (JSON) offset=102345456 partition=2
 ```
 
 ------------------------------------------------------------------------
@@ -129,7 +136,7 @@ OK (JSON)
 ### Avro
 
 ```bash
-OK (AVRO)
+OK (AVRO) offset=828234456 partition=9
 ```
 
 ------------------------------------------------------------------------
@@ -137,10 +144,10 @@ OK (AVRO)
 ### Invalid
 
 ```bash
-=== INVALID MESSAGE DETECTED ===
-offset=123 partition=0
+=== INVALID AVRO MESSAGE DETECTED ===
+offset=828234452 partition=3
 00000000 7b 22 6e ... |...|
-================================
+=====================================
 ```
 
 ------------------------------------------------------------------------
