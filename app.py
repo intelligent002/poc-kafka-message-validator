@@ -182,8 +182,9 @@ def main():
 
                         print(f"OK (AVRO) offset={msg.offset()} partition={msg.partition()}")
                         if not silent:
-                            print(json.dumps(decoded, ensure_ascii=False, indent=2, default=json_safe))
-                            hex_dump(raw)
+                            out=json.dumps(decoded, ensure_ascii=False, indent=2, default=json_safe)
+                            print(out)
+                            hex_dump(out.encode("utf-8"))
 
                     except Exception as e:
                         print("\n=== INVALID AVRO MESSAGE DETECTED ===")
@@ -195,7 +196,7 @@ def main():
                     hex_dump(raw)
 
                 if not silent:
-                    print("========================================\n")
+                    print("================================================================================\n")
 
                 continue
 
@@ -207,8 +208,9 @@ def main():
             if parsed is not None:
                 print(f"OK (JSON) offset={msg.offset()} partition={msg.partition()}")
                 if not silent:
-                    print(json.dumps(parsed, ensure_ascii=False, indent=2, default=json_safe))
-                    hex_dump(raw)
+                    out=json.dumps(parsed, ensure_ascii=False, indent=2, default=json_safe)
+                    print(out)
+                    hex_dump(out.encode('utf-8'))
             else:
                 print("\n=== INVALID JSON MESSAGE DETECTED ===")
                 print(f"offset={msg.offset()} partition={msg.partition()}")
